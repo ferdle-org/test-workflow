@@ -1,0 +1,80 @@
+name: Two Jobs Workflow
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # First job that uses a repository secret
+  job-with-secret:
+    runs-on: ubuntu-latest
+    name: Job with Secret Token
+    
+    steps:
+      - name: Checkout repository with token
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          # The token provides elevated permissions for operations like:
+          # - Accessing private submodules
+          # - Triggering other workflows
+          # - Pushing changes back to the repository
+          
+      - name: Display repository info
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.actor }}"
+          
+      - name: Example API call using secret
+        env:
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+        run: |
+          # Example of using a secret for API authentication
+          # Note: The actual secret value is masked in logs
+          if [ -n "$API_TOKEN" ]; then
+            echo "API Token is configured (value is hidden)"
+          else
+            echo "API Token is not configured"
+          fi
+
+  # Second job that uses a repository variable
+  job-with-repo-variable:
+    runs-on: ubuntu-latest
+    name: Job with Repository Variable
+    needs: job-with-secret  # This job runs after the first job completes
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Display repository variable
+        run: |
+          echo "ENV_INTEGRATIONS is set to: ${{ vars.ENV_INTEGRATIONS }}"
+          echo "Running integration checks..."
+          
+      - name: Conditional step based on ENV_INTEGRATIONS
+        if: vars.ENV_INTEGRATIONS == 'enabled'
+        run: |
+          echo "Integration environment is enabled"
+          echo "Proceeding with integration-specific tasks..."
+          
+      - name: Use repository variable in environment
+        env:
+          INTEGRATIONS_MODE: ${{ vars.ENV_INTEGRATIONS }}
+        run: |
+          echo "INTEGRATIONS_MODE environment variable: $INTEGRATIONS_MODE"
+          echo "Direct repository variable access: ${{ vars.ENV_INTEGRATIONS }}"
+          
+      - name: Combine variables and secrets
+        env:
+          INTEGRATION_STATUS: ${{ vars.ENV_INTEGRATIONS }}
+          SECRET_EXISTS: ${{ secrets.API_TOKEN != '' }}
+        run: |
+          echo "Integration Status: $INTEGRATION_STATUS"
+          echo "Has API Token: $SECRET_EXISTS"
+          echo "Repository: ${{ github.repository }}"
+          echo "Actor: ${{ github.actor }}"
